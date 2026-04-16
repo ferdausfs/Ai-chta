@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <style name="Theme.AIChat" parent="Theme.Material3.DayNight.NoActionBar">
+        <item name="colorPrimary">#7C70E8</item>
+        <item name="colorPrimaryVariant">#5B4FCF</item>
+        <item name="colorSecondary">#A89FF0</item>
+        <item name="colorSurface">#12121E</item>
+        <item name="colorSurfaceVariant">#1E1E30</item>
+        <item name="colorOnSurface">#E8E8F0</item>
+        <item name="colorOnSurfaceVariant">#9999BB</item>
+        <item name="colorOutlineVariant">#2A2A40</item>
+        <item name="android:windowBackground">@color/surface</item>
+        <item name="android:statusBarColor">#1A1A2E</item>
+        <item name="android:navigationBarColor">#12121E</item>
+    </style>
+</resources>

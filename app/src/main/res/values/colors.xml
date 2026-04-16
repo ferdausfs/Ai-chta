@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="toolbar_bg">#1A1A2E</color>
+    <color name="toolbar_text">#FFFFFF</color>
+    <color name="toolbar_subtitle">#AAAACC</color>
+    <color name="text_primary">#E8E8F0</color>
+    <color name="bubble_user_text">#FFFFFF</color>
+    <color name="error_color">#CF6679</color>
+    <color name="bubble_user">#5B4FCF</color>
+    <color name="bubble_assistant">#252535</color>
+    <color name="surface">#12121E</color>
+</resources>
