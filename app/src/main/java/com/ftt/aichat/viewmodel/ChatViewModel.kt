@@ -9,6 +9,7 @@ import com.ftt.aichat.data.Message
 import com.ftt.aichat.data.AVAILABLE_MODELS
 import com.ftt.aichat.data.DEFAULT_MODEL
 import com.ftt.aichat.data.ModelOption
+import com.ftt.aichat.repository.ChatRepository
 import com.ftt.aichat.utils.PreferencesManager
 import okhttp3.Call
 
@@ -16,8 +17,9 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
 
     private val prefs = PreferencesManager(application)
     private val apiService = ClaudeApiService()
+    private val repository = ChatRepository(application)
 
-    // Active OkHttp streaming call (used for cancellation)
+    // Active OkHttp streaming call (for cancellation)
     private var activeCall: Call? = null
 
     // ── Observable State ─────────────────────────────────────────
@@ -34,7 +36,15 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     private val _selectedModel = MutableLiveData(getCurrentModel())
     val selectedModel: LiveData<ModelOption> = _selectedModel
 
-    // ── Getters for current settings ──────────────────────────────
+    // ── Init: load saved history ──────────────────────────────────
+    init {
+        val saved = repository.loadMessages()
+        if (saved.isNotEmpty()) {
+            _messages.value = saved
+        }
+    }
+
+    // ── Getters ──────────────────────────────────────────────────
     val hasApiKey: Boolean get() = prefs.hasApiKey
     val apiKey: String get() = prefs.apiKey
 
@@ -44,7 +54,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         if (userInput.isBlank()) return
         if (_isStreaming.value == true) return
         if (!prefs.hasApiKey) {
-            _error.value = "API key not set. Go to Settings."
+            _error.value = "API key not set. Go to Settings ⚙️"
             return
         }
 
@@ -53,7 +63,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         val updatedMessages = _messages.value.orEmpty().toMutableList()
         updatedMessages.add(userMsg)
 
-        // 2. Add empty streaming placeholder for assistant
+        // 2. Add streaming placeholder
         val streamingMsg = Message(role = Message.ROLE_ASSISTANT, content = "", isStreaming = true)
         updatedMessages.add(streamingMsg)
         _messages.postValue(updatedMessages.toList())
@@ -63,10 +73,10 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         activeCall = apiService.streamChat(
             apiKey = prefs.apiKey,
             model = prefs.selectedModelId,
+            // Send history without the streaming placeholder
             messages = updatedMessages.filter { !it.isStreaming },
             systemPrompt = prefs.systemPrompt.ifBlank { null },
             onToken = { token ->
-                // Append token to the streaming message
                 val current = _messages.value.orEmpty().toMutableList()
                 val idx = current.indexOfLast { it.isStreaming }
                 if (idx != -1) {
@@ -75,21 +85,20 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                 }
             },
             onComplete = {
-                // Finalize the streaming message
                 val current = _messages.value.orEmpty().toMutableList()
                 val idx = current.indexOfLast { it.isStreaming }
                 if (idx != -1) {
                     current[idx] = current[idx].copy(isStreaming = false)
                     _messages.postValue(current.toList())
+                    // Persist to disk after complete response
+                    repository.saveMessages(current)
                 }
                 _isStreaming.postValue(false)
                 activeCall = null
             },
             onError = { errorMsg ->
-                // Remove streaming placeholder, show error
                 val current = _messages.value.orEmpty().toMutableList()
                 current.removeAll { it.isStreaming }
-                // Add error message visually
                 current.add(
                     Message(
                         role = Message.ROLE_ASSISTANT,
@@ -107,12 +116,13 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
 
     fun stopStreaming() {
         activeCall?.cancel()
-        // Finalize whatever was streamed so far
         val current = _messages.value.orEmpty().toMutableList()
         val idx = current.indexOfLast { it.isStreaming }
         if (idx != -1) {
+            // Keep what was streamed so far, just mark as done
             current[idx] = current[idx].copy(isStreaming = false)
             _messages.postValue(current.toList())
+            repository.saveMessages(current)
         }
         _isStreaming.postValue(false)
         activeCall = null
@@ -122,6 +132,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         stopStreaming()
         _messages.value = emptyList()
         _error.value = null
+        repository.clearMessages()
     }
 
     fun clearError() {
@@ -134,9 +145,8 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         _selectedModel.value = getCurrentModel()
     }
 
-    private fun getCurrentModel(): ModelOption {
-        return AVAILABLE_MODELS.find { it.id == prefs.selectedModelId } ?: DEFAULT_MODEL
-    }
+    private fun getCurrentModel(): ModelOption =
+        AVAILABLE_MODELS.find { it.id == prefs.selectedModelId } ?: DEFAULT_MODEL
 
     override fun onCleared() {
         super.onCleared()
